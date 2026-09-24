@@ -1,0 +1,1431 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Διανομέας · Έσοδα</title>
+<meta name="description" content="Καταγραφή παραγγελιών Wolt και υπολογισμός καθαρού εισοδήματος μετά από φόρους, ΕΦΚΑ και έξοδα οχήματος.">
+<meta name="theme-color" content="#0F1B12">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Διανομέας">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+  :root{
+    --ink:#0F1B12;
+    --ink-soft:#1B2A1F;
+    --paper:#F5F3ED;
+    --paper-dim:#EAE7DD;
+    --accent:#00D9A3;
+    --accent-deep:#00B389;
+    --warn:#FF6B4A;
+    --warn-deep:#E85A3B;
+    --muted:#8B95A1;
+    --line:rgba(15,27,18,0.10);
+    --line-soft:rgba(245,243,237,0.12);
+    --radius:18px;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-sizing:border-box;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  html{scroll-padding-top: env(safe-area-inset-top, 0px);}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    background:var(--ink);
+    color:var(--paper);
+    -webkit-font-smoothing:antialiased;
+    overscroll-behavior-y:none;
+  }
+  #app{
+    max-width:480px;
+    margin:0 auto;
+    min-height:100%;
+    display:flex;
+    flex-direction:column;
+    position:relative;
+  }
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    padding:calc(env(safe-area-inset-top,0px) + 18px) 20px 14px;
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+  }
+  .topbar .brand{
+    font-size:15px;
+    font-weight:700;
+    letter-spacing:0.2px;
+    color:var(--paper);
+  }
+  .topbar .brand span{color:var(--accent);}
+  .topbar .date{
+    font-size:12px;
+    color:var(--muted);
+  }
+
+  /* ---------- Scroll area ---------- */
+  .screen{
+    flex:1;
+    overflow-y:auto;
+    padding-bottom:100px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .screen::-webkit-scrollbar{display:none;}
+
+  section{display:none;}
+  section.active{display:block;}
+
+  /* ---------- Hero net income ---------- */
+  .hero{
+    margin:4px 20px 18px;
+    padding:26px 22px;
+    border-radius:24px;
+    background:linear-gradient(155deg, var(--ink-soft) 0%, #14241A 100%);
+    border:1px solid var(--line-soft);
+    position:relative;
+    overflow:hidden;
+  }
+  .hero::after{
+    content:"";
+    position:absolute;
+    right:-40px; top:-40px;
+    width:160px; height:160px;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(0,217,163,0.16), transparent 70%);
+  }
+  .hero .label{
+    font-size:12.5px;
+    color:var(--muted);
+    margin:0 0 6px;
+  }
+  .hero .amount{
+    font-size:44px;
+    font-weight:800;
+    letter-spacing:-0.5px;
+    line-height:1;
+    margin:0;
+    font-variant-numeric:tabular-nums;
+  }
+  .hero .amount small{
+    font-size:20px;
+    font-weight:700;
+    color:var(--muted);
+    margin-left:4px;
+  }
+  .hero .sub{
+    margin-top:14px;
+    display:flex;
+    gap:18px;
+  }
+  .hero .sub div{font-size:12px;color:var(--muted);}
+  .hero .sub strong{
+    display:block;
+    font-size:15px;
+    color:var(--paper);
+    font-weight:700;
+    margin-top:2px;
+    font-variant-numeric:tabular-nums;
+  }
+  .hero .period-toggle{
+    display:flex;
+    gap:6px;
+    margin-top:16px;
+  }
+  .period-toggle button{
+    flex:1;
+    padding:7px 0;
+    border-radius:10px;
+    border:1px solid var(--line-soft);
+    background:transparent;
+    color:var(--muted);
+    font-size:12px;
+    font-weight:600;
+    font-family:inherit;
+  }
+  .period-toggle button.on{
+    background:var(--accent);
+    border-color:var(--accent);
+    color:var(--ink);
+  }
+
+  /* ---------- Section headers ---------- */
+  .sec-head{
+    margin:22px 20px 10px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .sec-head h2{
+    font-size:14px;
+    font-weight:700;
+    color:var(--paper);
+    margin:0;
+  }
+  .sec-head a{
+    font-size:12.5px;
+    color:var(--accent);
+    text-decoration:none;
+    font-weight:600;
+  }
+
+  /* ---------- Breakdown card ---------- */
+  .card{
+    margin:0 20px 12px;
+    background:var(--paper);
+    color:var(--ink);
+    border-radius:var(--radius);
+    padding:16px 18px;
+  }
+  .row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:9px 0;
+  }
+  .row + .row{border-top:1px solid var(--line);}
+  .row .rl{font-size:13.5px;color:var(--ink-soft);}
+  .row .rl small{display:block;font-size:11px;color:var(--muted);margin-top:1px;}
+  .row .rv{font-size:14.5px;font-weight:700;font-variant-numeric:tabular-nums;}
+  .row .rv.neg{color:var(--warn-deep);}
+  .row .rv.pos{color:var(--accent-deep);}
+  .row.total{padding-top:12px;margin-top:2px;border-top:1.5px solid var(--ink);}
+  .row.total .rl{font-weight:700;color:var(--ink);}
+  .row.total .rv{font-size:18px;}
+
+  /* ---------- Orders list ---------- */
+  .order-item{
+    margin:0 20px 10px;
+    background:var(--paper);
+    border-radius:16px;
+    padding:14px 16px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .order-icon{
+    width:38px;height:38px;
+    border-radius:11px;
+    background:var(--ink);
+    color:var(--accent);
+    display:flex;align-items:center;justify-content:center;
+    font-size:16px;
+    flex-shrink:0;
+  }
+  .order-mid{flex:1;min-width:0;}
+  .order-mid .ot{
+    color:var(--ink);
+    font-size:14px;
+    font-weight:700;
+  }
+  .order-mid .os{
+    color:var(--muted);
+    font-size:12px;
+    margin-top:2px;
+  }
+  .order-amt{
+    text-align:right;
+    flex-shrink:0;
+  }
+  .order-amt .oa{
+    font-size:15px;
+    font-weight:800;
+    color:var(--accent-deep);
+    font-variant-numeric:tabular-nums;
+  }
+  .order-amt .ok{
+    font-size:11px;
+    color:var(--muted);
+  }
+  .empty{
+    margin:40px 30px;
+    text-align:center;
+    color:var(--muted);
+    font-size:13.5px;
+    line-height:1.6;
+  }
+
+  /* ---------- Floating add button ---------- */
+  .fab{
+    position:fixed;
+    left:50%;
+    transform:translateX(-50%);
+    bottom:calc(78px + env(safe-area-inset-bottom, 0px));
+    max-width:480px;
+    width:calc(100% - 40px);
+    z-index:20;
+  }
+  .fab button{
+    width:100%;
+    padding:15px 0;
+    border-radius:16px;
+    border:none;
+    background:var(--accent);
+    color:var(--ink);
+    font-size:15px;
+    font-weight:800;
+    font-family:inherit;
+    box-shadow:0 8px 24px rgba(0,217,163,0.35);
+  }
+  .fab button:active{background:var(--accent-deep);}
+
+  /* ---------- Bottom nav ---------- */
+  nav.tabs{
+    position:sticky;
+    bottom:0;
+    display:flex;
+    background:var(--ink-soft);
+    border-top:1px solid var(--line-soft);
+    padding-bottom:env(safe-area-inset-bottom, 0px);
+    z-index:15;
+  }
+  nav.tabs button{
+    flex:1;
+    background:none;
+    border:none;
+    padding:12px 0 10px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:3px;
+    color:var(--muted);
+    font-family:inherit;
+  }
+  nav.tabs button .ic{font-size:19px;line-height:1;}
+  nav.tabs button .tl{font-size:10.5px;font-weight:600;}
+  nav.tabs button.on{color:var(--accent);}
+
+  /* ---------- Form (modal sheet) ---------- */
+  .sheet-backdrop{
+    position:fixed;inset:0;
+    background:rgba(0,0,0,0.5);
+    z-index:30;
+    display:none;
+  }
+  .sheet-backdrop.on{display:block;}
+  .sheet{
+    position:fixed;
+    left:50%;
+    bottom:0;
+    transform:translateX(-50%);
+    max-width:480px;
+    width:100%;
+    background:var(--paper);
+    color:var(--ink);
+    border-radius:22px 22px 0 0;
+    z-index:31;
+    padding:18px 20px calc(24px + env(safe-area-inset-bottom, 0px));
+    max-height:88vh;
+    overflow-y:auto;
+    display:none;
+  }
+  .sheet.on{display:block;}
+  .sheet h3{margin:2px 0 16px;font-size:17px;font-weight:800;}
+  .sheet .grabber{
+    width:36px;height:4px;background:var(--line);border-radius:3px;
+    margin:0 auto 14px;
+  }
+  .field{margin-bottom:14px;}
+  .field label{
+    display:block;
+    font-size:12px;
+    font-weight:700;
+    color:var(--muted);
+    margin-bottom:6px;
+    text-transform:none;
+  }
+  .field input, .field select{
+    width:100%;
+    padding:12px 13px;
+    border-radius:12px;
+    border:1.5px solid var(--line);
+    background:#fff;
+    color:var(--ink);
+    font-size:15px;
+    font-family:inherit;
+  }
+  .field input:focus, .field select:focus{outline:2px solid var(--accent);border-color:var(--accent);}
+  .field-row{display:flex;gap:10px;}
+  .field-row .field{flex:1;}
+  .save-btn{
+    width:100%;
+    padding:15px 0;
+    border-radius:14px;
+    border:none;
+    background:var(--ink);
+    color:var(--accent);
+    font-size:15px;
+    font-weight:800;
+    font-family:inherit;
+    margin-top:4px;
+  }
+  .del-btn{
+    width:100%;
+    padding:13px 0;
+    border-radius:14px;
+    border:1.5px solid var(--warn);
+    background:transparent;
+    color:var(--warn-deep);
+    font-size:14px;
+    font-weight:700;
+    font-family:inherit;
+    margin-top:10px;
+  }
+  .hint{
+    font-size:11.5px;
+    color:var(--muted);
+    margin-top:5px;
+    line-height:1.5;
+  }
+
+  /* ---------- Settings ---------- */
+  .set-group{
+    margin:0 20px 16px;
+    background:var(--paper);
+    border-radius:var(--radius);
+    padding:6px 18px;
+  }
+  .set-group .sg-title{
+    font-size:11px;
+    font-weight:700;
+    color:var(--muted);
+    padding:12px 0 6px;
+    letter-spacing:0.2px;
+  }
+  .set-row{
+    padding:11px 0;
+    border-top:1px solid var(--line);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+  }
+  .set-row:first-of-type{border-top:none;}
+  .set-row label{
+    font-size:13.5px;
+    color:var(--ink-soft);
+    flex:1;
+  }
+  .set-row label small{display:block;font-size:11px;color:var(--muted);margin-top:2px;}
+  .set-row input, .set-row select{
+    width:110px;
+    padding:9px 10px;
+    border-radius:10px;
+    border:1.5px solid var(--line);
+    background:#fff;
+    color:var(--ink);
+    font-size:14px;
+    font-family:inherit;
+    text-align:right;
+  }
+  .set-row select{width:150px;text-align:left;}
+  .note-box{
+    margin:0 20px 16px;
+    padding:14px 16px;
+    background:rgba(255,107,74,0.12);
+    border:1px solid rgba(255,107,74,0.3);
+    border-radius:14px;
+    font-size:12px;
+    color:var(--paper);
+    line-height:1.6;
+  }
+  .note-box b{color:var(--warn);}
+
+  .toast{
+    position:fixed;
+    left:50%;
+    top:calc(env(safe-area-inset-top,0px) + 14px);
+    transform:translateX(-50%) translateY(-60px);
+    background:var(--ink);
+    color:var(--accent);
+    padding:11px 18px;
+    border-radius:12px;
+    font-size:13px;
+    font-weight:700;
+    z-index:50;
+    transition:transform 0.25s ease;
+    border:1px solid var(--line-soft);
+    white-space:nowrap;
+  }
+  .toast.on{transform:translateX(-50%) translateY(0);}
+
+  ::-webkit-scrollbar{width:0;height:0;}
+
+  /* ---------- Scan sheet ---------- */
+  .scan-trigger{
+    margin:0 20px 12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    padding:13px 0;
+    border-radius:14px;
+    border:1.5px dashed var(--line-soft);
+    background:rgba(0,217,163,0.06);
+    color:var(--accent);
+    font-size:13.5px;
+    font-weight:700;
+  }
+  .scan-trigger .ic{font-size:16px;}
+  #scanFileInput{display:none;}
+
+  .scan-preview-img{
+    width:100%;
+    border-radius:14px;
+    margin-bottom:14px;
+    display:block;
+    max-height:220px;
+    object-fit:cover;
+    object-position:top;
+  }
+  .scan-status{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:16px 4px;
+    font-size:13.5px;
+    color:var(--ink-soft);
+  }
+  .spinner{
+    width:18px;height:18px;
+    border-radius:50%;
+    border:2.5px solid var(--line);
+    border-top-color:var(--accent-deep);
+    animation:spin 0.8s linear infinite;
+    flex-shrink:0;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .scan-err{
+    padding:14px 16px;
+    background:rgba(255,107,74,0.12);
+    border:1px solid rgba(255,107,74,0.35);
+    border-radius:12px;
+    color:var(--warn-deep);
+    font-size:13px;
+    line-height:1.6;
+  }
+
+  .review-list{margin-top:4px;}
+  .review-item{
+    background:#fff;
+    border:1.5px solid var(--line);
+    border-radius:14px;
+    padding:12px 14px;
+    margin-bottom:10px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .review-item.off{opacity:0.4;}
+  .review-check{
+    width:22px;height:22px;
+    border-radius:7px;
+    border:2px solid var(--ink);
+    flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    font-size:13px;
+    color:var(--ink);
+  }
+  .review-item.off .review-check{border-color:var(--line);color:transparent;}
+  .review-item:not(.off) .review-check{background:var(--accent);border-color:var(--accent);color:var(--ink);}
+  .review-mid{flex:1;min-width:0;}
+  .review-mid .rt{font-size:13.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .review-mid .rs{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .review-amt{font-size:14.5px;font-weight:800;color:var(--accent-deep);flex-shrink:0;}
+  .review-count{
+    font-size:12.5px;
+    color:var(--muted);
+    margin:2px 0 12px;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="topbar">
+    <div class="brand">Διανομέας<span>.</span></div>
+    <div class="date" id="todayLabel"></div>
+  </div>
+
+  <div class="screen">
+
+    <!-- ======================= HOME ======================= -->
+    <section id="sec-home" class="active">
+      <div class="hero">
+        <p class="label" id="heroLabel">Καθαρό εισόδημα · αυτός ο μήνας</p>
+        <p class="amount" id="heroAmount">0,00<small>€</small></p>
+        <div class="sub">
+          <div>Ακαθάριστα<strong id="heroGross">0,00€</strong></div>
+          <div>Έξοδα &amp; εισφορές<strong id="heroDeduct">0,00€</strong></div>
+          <div>Παραγγελίες<strong id="heroCount">0</strong></div>
+        </div>
+        <div class="period-toggle">
+          <button data-period="week">Εβδομάδα</button>
+          <button data-period="month" class="on">Μήνας</button>
+          <button data-period="year">Έτος</button>
+        </div>
+      </div>
+
+      <div class="sec-head">
+        <h2>Ανάλυση περιόδου</h2>
+      </div>
+      <div class="card" id="breakdownCard"></div>
+
+      <div class="sec-head">
+        <h2>Τελευταίες παραγγελίες</h2>
+        <a id="seeAllOrders">όλες →</a>
+      </div>
+      <div id="recentOrders"></div>
+    </section>
+
+    <!-- ======================= ORDERS ======================= -->
+    <section id="sec-orders">
+      <div class="scan-trigger" id="scanTrigger" style="margin-top:18px;">
+        <span class="ic">📷</span> Σάρωση φωτογραφίας με παραγγελίες
+      </div>
+      <input type="file" id="scanFileInput" accept="image/*" capture="environment">
+      <div class="sec-head">
+        <h2>Όλες οι παραγγελίες</h2>
+        <a id="ordersPeriodLabel"></a>
+      </div>
+      <div id="ordersList"></div>
+    </section>
+
+    <!-- ======================= EXPENSES ======================= -->
+    <section id="sec-expenses">
+      <div class="sec-head" style="margin-top:18px;">
+        <h2>Έξοδα (καύσιμο, service, κτλ)</h2>
+      </div>
+      <div id="expensesList"></div>
+    </section>
+
+    <!-- ======================= SETTINGS ======================= -->
+    <section id="sec-settings">
+      <div class="sec-head" style="margin-top:18px;"><h2>Μισθωτή εργασία</h2></div>
+      <div class="set-group">
+        <div class="set-row">
+          <label>Μικτός μηνιαίος μισθός<small>για υπολογισμό ενιαίας φορ. κλίμακας</small></label>
+          <input type="number" id="cfgSalary" inputmode="decimal">
+        </div>
+      </div>
+
+      <div class="sec-head"><h2>Οικογενειακή κατάσταση</h2></div>
+      <div class="set-group">
+        <div class="set-row">
+          <label>Εξαρτώμενα τέκνα</label>
+          <select id="cfgKids">
+            <option value="0">Κανένα</option>
+            <option value="1">1 παιδί</option>
+            <option value="2">2 παιδιά</option>
+            <option value="3">3 παιδιά</option>
+            <option value="4">4+ παιδιά</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="sec-head"><h2>Ασφάλιση ΕΦΚΑ (ατομική επιχ.)</h2></div>
+      <div class="set-group">
+        <div class="set-row">
+          <label>Καθεστώς<small>νέα έναρξη = μειωμένη κατηγορία</small></label>
+          <select id="cfgEfkaStatus">
+            <option value="new">Νέα έναρξη (&lt;3 έτη)</option>
+            <option value="normal">Κανονικό καθεστώς</option>
+          </select>
+        </div>
+        <div class="set-row">
+          <label>Μηνιαία εισφορά ΕΦΚΑ<small>αυτόματα βάσει καθεστώτος· μπορείς να διορθώσεις</small></label>
+          <input type="number" id="cfgEfka" inputmode="decimal">
+        </div>
+      </div>
+
+      <div class="sec-head"><h2>Όχημα (μηχανή)</h2></div>
+      <div class="set-group">
+        <div class="set-row">
+          <label>Κόστος ανά χιλιόμετρο<small>καύσιμο + φθορά, χρησιμοποιείται αν δεν καταχωρείς έξοδα χειροκίνητα</small></label>
+          <input type="number" id="cfgPerKm" inputmode="decimal" step="0.01">
+        </div>
+        <div class="set-row">
+          <label>Μέση απόσταση/παραγγελία (km)</label>
+          <input type="number" id="cfgKmPerOrder" inputmode="decimal" step="0.1">
+        </div>
+      </div>
+
+      <div class="sec-head"><h2>Λοιπά</h2></div>
+      <div class="set-group">
+        <div class="set-row">
+          <label>Τέλος επιτηδεύματος (ετήσιο)<small>0€ αν δεν ισχύει στην περίπτωσή σου</small></label>
+          <input type="number" id="cfgTelos" inputmode="decimal">
+        </div>
+        <div class="set-row">
+          <label>Λοιπά έξοδα ελεύθερα<small>λογιστής, ΕΠΕ, τηλέφωνο κτλ — προσθήκη ξεχωριστά στα «Έξοδα»</small></label>
+          <span style="font-size:12px;color:var(--muted)">→ tab Έξοδα</span>
+        </div>
+      </div>
+
+      <div class="note-box">
+        <b>Σημαντικό.</b> Οι υπολογισμοί είναι εκτίμηση βάσει τρεχουσών κλιμάκων ΕΦΚΑ και φόρου εισοδήματος 2026, όχι επίσημη φορολογική γνωμοδότηση. Ο φόρος εισοδήματός σου υπολογίζεται ενιαία στο μισθό + στο επιχειρηματικό κέρδος μαζί (progressive κλίμακα), γι' αυτό η εφαρμογή σου δείχνει το <b>οριακό</b> ποσοστό φόρου που επιβαρύνει τα έσοδα Wolt πάνω στο μισθό σου. Για ακριβές ποσό, επιβεβαίωσε με λογιστή.
+      </div>
+
+      <button class="save-btn" id="saveSettingsBtn" style="margin:0 20px 30px;width:calc(100% - 40px);">Αποθήκευση ρυθμίσεων</button>
+    </section>
+
+  </div>
+
+  <div class="fab" id="fabAdd">
+    <button id="fabAddBtn">+ Νέα παραγγελία</button>
+  </div>
+
+  <nav class="tabs">
+    <button class="tab-btn on" data-tab="home"><span class="ic">⌂</span><span class="tl">Αρχική</span></button>
+    <button class="tab-btn" data-tab="orders"><span class="ic">▤</span><span class="tl">Παραγγελίες</span></button>
+    <button class="tab-btn" data-tab="expenses"><span class="ic">⛽</span><span class="tl">Έξοδα</span></button>
+    <button class="tab-btn" data-tab="settings"><span class="ic">⚙</span><span class="tl">Ρυθμίσεις</span></button>
+  </nav>
+
+</div>
+
+<!-- ======================= ADD ORDER SHEET ======================= -->
+<div class="sheet-backdrop" id="orderBackdrop"></div>
+<div class="sheet" id="orderSheet">
+  <div class="grabber"></div>
+  <h3 id="orderSheetTitle">Νέα παραγγελία</h3>
+  <input type="hidden" id="orderId">
+  <div class="field-row">
+    <div class="field">
+      <label>Ημερομηνία</label>
+      <input type="date" id="ordDate">
+    </div>
+    <div class="field">
+      <label>Ώρα</label>
+      <input type="time" id="ordTime">
+    </div>
+  </div>
+  <div class="field-row">
+    <div class="field">
+      <label>Αμοιβή παραγγελίας (€)</label>
+      <input type="number" id="ordAmount" inputmode="decimal" step="0.01" placeholder="π.χ. 4.20">
+    </div>
+    <div class="field">
+      <label>Φιλοδώρημα (€)</label>
+      <input type="number" id="ordTip" inputmode="decimal" step="0.01" placeholder="0.00">
+    </div>
+  </div>
+  <div class="field">
+    <label>Απόσταση (km) — προαιρετικό</label>
+    <input type="number" id="ordKm" inputmode="decimal" step="0.1" placeholder="αφήστε κενό για μέσο όρο ρυθμίσεων">
+    <div class="hint">Αν το αφήσεις κενό, θα χρησιμοποιηθεί η μέση απόσταση/παραγγελία από τις Ρυθμίσεις για τον υπολογισμό εξόδων οχήματος.</div>
+  </div>
+  <div class="field">
+    <label>Σημείωση — προαιρετικό</label>
+    <input type="text" id="ordNote" placeholder="π.χ. περιοχή, εστιατόριο">
+  </div>
+  <button class="save-btn" id="saveOrderBtn">Αποθήκευση παραγγελίας</button>
+  <button class="del-btn" id="delOrderBtn" style="display:none;">Διαγραφή παραγγελίας</button>
+</div>
+
+<!-- ======================= ADD EXPENSE SHEET ======================= -->
+<div class="sheet-backdrop" id="expBackdrop"></div>
+<div class="sheet" id="expSheet">
+  <div class="grabber"></div>
+  <h3 id="expSheetTitle">Νέο έξοδο</h3>
+  <input type="hidden" id="expId">
+  <div class="field-row">
+    <div class="field">
+      <label>Ημερομηνία</label>
+      <input type="date" id="expDate">
+    </div>
+    <div class="field">
+      <label>Ποσό (€)</label>
+      <input type="number" id="expAmount" inputmode="decimal" step="0.01">
+    </div>
+  </div>
+  <div class="field">
+    <label>Κατηγορία</label>
+    <select id="expCat">
+      <option value="fuel">Καύσιμο</option>
+      <option value="service">Service / συντήρηση μηχανής</option>
+      <option value="insurance">Ασφάλεια μηχανής</option>
+      <option value="accountant">Λογιστής</option>
+      <option value="phone">Τηλέφωνο / data</option>
+      <option value="equipment">Εξοπλισμός (τσάντα, κράνος κτλ)</option>
+      <option value="other">Άλλο</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>Σημείωση — προαιρετικό</label>
+    <input type="text" id="expNote" placeholder="π.χ. αλλαγή λαδιών">
+  </div>
+  <button class="save-btn" id="saveExpBtn">Αποθήκευση εξόδου</button>
+  <button class="del-btn" id="delExpBtn" style="display:none;">Διαγραφή εξόδου</button>
+</div>
+
+<div class="fab" id="fabExp" style="display:none;">
+  <button id="fabExpBtn">+ Νέο έξοδο</button>
+</div>
+
+<!-- ======================= SCAN REVIEW SHEET ======================= -->
+<div class="sheet-backdrop" id="scanBackdrop"></div>
+<div class="sheet" id="scanSheet" style="max-height:92vh;">
+  <div class="grabber"></div>
+  <h3 id="scanSheetTitle">Σάρωση φωτογραφίας</h3>
+  <div id="scanBody"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============ STORAGE ============ */
+  var STORE_KEY = "wolt_tracker_v1";
+  var DEFAULTS = {
+    orders: [],       // {id, date, time, amount, tip, km, note}
+    expenses: [],      // {id, date, amount, cat, note}
+    settings: {
+      salary: 1300,
+      kids: 1,
+      efkaStatus: "new",
+      efka: 160.46,
+      perKm: 0.09,
+      kmPerOrder: 3.5,
+      telos: 0
+    }
+  };
+
+  function loadData(){
+    try{
+      var raw = localStorage.getItem(STORE_KEY);
+      if(!raw) return JSON.parse(JSON.stringify(DEFAULTS));
+      var parsed = JSON.parse(raw);
+      // merge with defaults to survive future upgrades
+      parsed.settings = Object.assign({}, DEFAULTS.settings, parsed.settings||{});
+      parsed.orders = parsed.orders || [];
+      parsed.expenses = parsed.expenses || [];
+      return parsed;
+    }catch(e){
+      return JSON.parse(JSON.stringify(DEFAULTS));
+    }
+  }
+  function saveData(){
+    try{ localStorage.setItem(STORE_KEY, JSON.stringify(DATA)); }
+    catch(e){ showToast("Αποθήκευση απέτυχε"); }
+  }
+
+  var DATA = loadData();
+
+  /* ============ HELPERS ============ */
+  function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+  function euro(n){
+    n = isFinite(n)?n:0;
+    return n.toLocaleString('el-GR',{minimumFractionDigits:2,maximumFractionDigits:2})+"€";
+  }
+  function todayISO(){
+    var d = new Date();
+    return d.toISOString().slice(0,10);
+  }
+  function nowHM(){
+    var d = new Date();
+    return String(d.getHours()).padStart(2,'0')+":"+String(d.getMinutes()).padStart(2,'0');
+  }
+  var toastTimer=null;
+  function showToast(msg){
+    var t=document.getElementById('toast');
+    t.textContent=msg;
+    t.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer=setTimeout(function(){t.classList.remove('on');},1800);
+  }
+
+  /* ============ TAX ENGINE ============ */
+  // Ελληνική κλίμακα φόρου εισοδήματος 2026, ανά αριθμό τέκνων
+  var TAX_BRACKETS = {
+    0: [[10000,0.09],[10000,0.20],[10000,0.26],[10000,0.34],[20000,0.39],[Infinity,0.44]],
+    1: [[10000,0.09],[10000,0.18],[10000,0.24],[10000,0.34],[20000,0.39],[Infinity,0.44]],
+    2: [[10000,0.09],[10000,0.16],[10000,0.22],[10000,0.34],[20000,0.39],[Infinity,0.44]],
+    3: [[10000,0.09],[10000,0.09],[10000,0.20],[10000,0.34],[20000,0.39],[Infinity,0.44]],
+    4: [[10000,0.09],[10000,0.09],[10000,0.09],[10000,0.34],[20000,0.39],[Infinity,0.44]]
+  };
+  function bracketsFor(kids){
+    return TAX_BRACKETS[Math.min(kids,4)] || TAX_BRACKETS[0];
+  }
+  function taxForIncome(totalIncome, kids){
+    var brackets = bracketsFor(kids);
+    var remaining = totalIncome;
+    var tax = 0;
+    for(var i=0;i<brackets.length;i++){
+      var width = brackets[i][0];
+      var rate = brackets[i][1];
+      var chunk = Math.min(remaining, width);
+      if(chunk<=0) break;
+      tax += chunk*rate;
+      remaining -= chunk;
+    }
+    return tax;
+  }
+  // Οριακός φόρος στα επιχειρηματικά κέρδη: φόρος(μισθός+κέρδη) - φόρος(μισθός)
+  function marginalBusinessTax(salaryAnnual, businessProfit, kids){
+    if(businessProfit<=0) return 0;
+    var withBiz = taxForIncome(salaryAnnual+businessProfit, kids);
+    var withoutBiz = taxForIncome(salaryAnnual, kids);
+    return Math.max(0, withBiz-withoutBiz);
+  }
+
+  /* ============ PERIOD FILTER ============ */
+  var currentPeriod = 'month';
+  function inPeriod(dateStr, period){
+    var d = new Date(dateStr+"T00:00:00");
+    var now = new Date();
+    if(period==='week'){
+      var day = (now.getDay()+6)%7; // Mon=0
+      var monday = new Date(now); monday.setDate(now.getDate()-day); monday.setHours(0,0,0,0);
+      var sunday = new Date(monday); sunday.setDate(monday.getDate()+6); sunday.setHours(23,59,59,999);
+      return d>=monday && d<=sunday;
+    }
+    if(period==='month'){
+      return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
+    }
+    if(period==='year'){
+      return d.getFullYear()===now.getFullYear();
+    }
+    return true;
+  }
+  function periodMonthsFraction(period){
+    // πόσο μερίδιο του έτους αντιπροσωπεύει η περίοδος, για ετησιοποίηση εφκα/τελους
+    if(period==='week') return 7/365;
+    if(period==='month') return 1/12;
+    return 1;
+  }
+
+  /* ============ CALCULATIONS ============ */
+  function computeSummary(period){
+    var s = DATA.settings;
+    var orders = DATA.orders.filter(function(o){return inPeriod(o.date,period);});
+    var expenses = DATA.expenses.filter(function(e){return inPeriod(e.date,period);});
+
+    var gross = 0, tips=0, totalKm=0;
+    orders.forEach(function(o){
+      gross += (parseFloat(o.amount)||0);
+      tips += (parseFloat(o.tip)||0);
+      var km = (o.km!==undefined && o.km!==null && o.km!=="") ? parseFloat(o.km) : parseFloat(s.kmPerOrder||0);
+      totalKm += (isFinite(km)?km:0);
+    });
+    var grossTotal = gross + tips;
+
+    var vehicleCost = totalKm * (parseFloat(s.perKm)||0);
+    var manualExpenses = expenses.reduce(function(sum,e){return sum+(parseFloat(e.amount)||0);},0);
+
+    var frac = periodMonthsFraction(period);
+    var efkaCost = (parseFloat(s.efka)||0) * (period==='month'?1: (period==='week'? (7/30.44) : 12));
+    var telosCost = (parseFloat(s.telos)||0) * frac;
+
+    var deductibleForTax = vehicleCost + manualExpenses + efkaCost; // εισφορές+έξοδα αφαιρούνται πριν το φόρο
+    var businessProfit = Math.max(0, grossTotal - deductibleForTax);
+
+    var salaryAnnual = (parseFloat(s.salary)||0) * 14; // 12 μισθοί + δώρα/επίδομα άδειας, ελληνικό πρότυπο
+    var annualProfitEstimate = businessProfit / frac; // ετησιοποίηση για σωστό οριακό συντελεστή
+    var annualTax = marginalBusinessTax(salaryAnnual, annualProfitEstimate, parseInt(s.kids,10)||0);
+    var periodTax = annualTax * frac;
+
+    var totalDeductions = vehicleCost + manualExpenses + efkaCost + telosCost + periodTax;
+    var net = grossTotal - totalDeductions;
+
+    return {
+      period:period, orders:orders, expenses:expenses,
+      grossTotal:grossTotal, gross:gross, tips:tips,
+      vehicleCost:vehicleCost, manualExpenses:manualExpenses,
+      efkaCost:efkaCost, telosCost:telosCost, tax:periodTax,
+      totalDeductions:totalDeductions, net:net,
+      count:orders.length, totalKm:totalKm
+    };
+  }
+
+  var PERIOD_LABELS = {week:"αυτή την εβδομάδα", month:"αυτός ο μήνας", year:"αυτό το έτος"};
+
+  /* ============ RENDER: HOME ============ */
+  function renderHome(){
+    var sum = computeSummary(currentPeriod);
+    document.getElementById('heroLabel').textContent = "Καθαρό εισόδημα · " + PERIOD_LABELS[currentPeriod];
+    document.getElementById('heroAmount').innerHTML = sum.net.toLocaleString('el-GR',{minimumFractionDigits:2,maximumFractionDigits:2})+"<small>€</small>";
+    document.getElementById('heroGross').textContent = euro(sum.grossTotal);
+    document.getElementById('heroDeduct').textContent = euro(sum.totalDeductions);
+    document.getElementById('heroCount').textContent = sum.count;
+
+    var bd = document.getElementById('breakdownCard');
+    bd.innerHTML =
+      row("Ακαθάριστες παραγγελίες", euro(sum.gross), null) +
+      row("Φιλοδωρήματα", euro(sum.tips), "pos") +
+      row("Έξοδα οχήματος (καύσιμο/φθορά)", "−"+euro(sum.vehicleCost), "neg") +
+      row("Λοιπά έξοδα (service, λογιστής κ.ά.)", "−"+euro(sum.manualExpenses), "neg") +
+      row("Εισφορές ΕΦΚΑ", "−"+euro(sum.efkaCost), "neg") +
+      (sum.telosCost>0 ? row("Τέλος επιτηδεύματος", "−"+euro(sum.telosCost), "neg") : "") +
+      row("Εκτιμώμενος φόρος εισοδήματος", "−"+euro(sum.tax), "neg", "στην ενιαία κλίμακα μισθού + κέρδους") +
+      rowTotal("Καθαρό εισόδημα", euro(sum.net));
+    bd.innerHTML += "";
+
+    // recent orders (max 4)
+    var recent = DATA.orders.slice().sort(function(a,b){return (b.date+b.time).localeCompare(a.date+a.time);}).slice(0,4);
+    var box = document.getElementById('recentOrders');
+    if(recent.length===0){
+      box.innerHTML = '<div class="empty">Δεν έχεις καταχωρήσει παραγγελίες ακόμα.<br>Πάτησε «+ Νέα παραγγελία» για να ξεκινήσεις.</div>';
+    } else {
+      box.innerHTML = recent.map(orderItemHTML).join("");
+      bindOrderItemClicks(box);
+    }
+  }
+  function row(label, value, cls, sub){
+    return '<div class="row"><div class="rl">'+label+(sub?'<small>'+sub+'</small>':'')+'</div><div class="rv'+(cls?' '+cls:'')+'">'+value+'</div></div>';
+  }
+  function rowTotal(label,value){
+    return '<div class="row total"><div class="rl">'+label+'</div><div class="rv pos">'+value+'</div></div>';
+  }
+
+  function orderItemHTML(o){
+    var total = (parseFloat(o.amount)||0)+(parseFloat(o.tip)||0);
+    var d = new Date(o.date+"T00:00:00");
+    var dateStr = d.toLocaleDateString('el-GR',{day:'2-digit',month:'short'});
+    return '<div class="order-item" data-id="'+o.id+'">'+
+      '<div class="order-icon">🛵</div>'+
+      '<div class="order-mid"><div class="ot">'+(o.note?o.note:'Παραγγελία Wolt')+'</div>'+
+      '<div class="os">'+dateStr+' · '+(o.time||'')+(o.km?' · '+o.km+' km':'')+'</div></div>'+
+      '<div class="order-amt"><div class="oa">'+euro(total)+'</div>'+(o.tip>0?'<div class="ok">φιλ. '+euro(parseFloat(o.tip))+'</div>':'')+'</div>'+
+      '</div>';
+  }
+  function bindOrderItemClicks(container){
+    container.querySelectorAll('.order-item').forEach(function(el){
+      el.addEventListener('click', function(){
+        openOrderSheet(el.getAttribute('data-id'));
+      });
+    });
+  }
+
+  /* ============ RENDER: ORDERS TAB ============ */
+  function renderOrders(){
+    document.getElementById('ordersPeriodLabel').textContent = PERIOD_LABELS[currentPeriod];
+    var list = DATA.orders.filter(function(o){return inPeriod(o.date,currentPeriod);})
+      .sort(function(a,b){return (b.date+b.time).localeCompare(a.date+a.time);});
+    var box = document.getElementById('ordersList');
+    if(list.length===0){
+      box.innerHTML = '<div class="empty">Καμία παραγγελία '+PERIOD_LABELS[currentPeriod]+'.</div>';
+    } else {
+      box.innerHTML = list.map(orderItemHTML).join("");
+      bindOrderItemClicks(box);
+    }
+  }
+
+  /* ============ RENDER: EXPENSES TAB ============ */
+  var CAT_LABELS = {
+    fuel:"Καύσιμο", service:"Service μηχανής", insurance:"Ασφάλεια μηχανής",
+    accountant:"Λογιστής", phone:"Τηλέφωνο / data", equipment:"Εξοπλισμός", other:"Άλλο"
+  };
+  var CAT_ICON = {fuel:"⛽",service:"🔧",insurance:"🛡️",accountant:"📋",phone:"📱",equipment:"🎒",other:"•"};
+  function expenseItemHTML(e){
+    var d = new Date(e.date+"T00:00:00");
+    var dateStr = d.toLocaleDateString('el-GR',{day:'2-digit',month:'short'});
+    return '<div class="order-item" data-id="'+e.id+'">'+
+      '<div class="order-icon">'+(CAT_ICON[e.cat]||'•')+'</div>'+
+      '<div class="order-mid"><div class="ot">'+(CAT_LABELS[e.cat]||'Έξοδο')+'</div>'+
+      '<div class="os">'+dateStr+(e.note?' · '+e.note:'')+'</div></div>'+
+      '<div class="order-amt"><div class="oa" style="color:var(--warn-deep)">−'+euro(parseFloat(e.amount)||0)+'</div></div>'+
+      '</div>';
+  }
+  function renderExpenses(){
+    var list = DATA.expenses.filter(function(e){return inPeriod(e.date,currentPeriod);})
+      .sort(function(a,b){return b.date.localeCompare(a.date);});
+    var box = document.getElementById('expensesList');
+    if(list.length===0){
+      box.innerHTML = '<div class="empty">Κανένα έξοδο '+PERIOD_LABELS[currentPeriod]+'.<br>Πάτησε «+ Νέο έξοδο» για καταχώρηση.</div>';
+    } else {
+      box.innerHTML = list.map(expenseItemHTML).join("");
+      box.querySelectorAll('.order-item').forEach(function(el){
+        el.addEventListener('click', function(){ openExpSheet(el.getAttribute('data-id')); });
+      });
+    }
+  }
+
+  /* ============ SETTINGS ============ */
+  function loadSettingsForm(){
+    var s = DATA.settings;
+    document.getElementById('cfgSalary').value = s.salary;
+    document.getElementById('cfgKids').value = s.kids;
+    document.getElementById('cfgEfkaStatus').value = s.efkaStatus;
+    document.getElementById('cfgEfka').value = s.efka;
+    document.getElementById('cfgPerKm').value = s.perKm;
+    document.getElementById('cfgKmPerOrder').value = s.kmPerOrder;
+    document.getElementById('cfgTelos').value = s.telos;
+  }
+  document.getElementById('cfgEfkaStatus').addEventListener('change', function(){
+    var v = this.value;
+    document.getElementById('cfgEfka').value = v==='new' ? 160.46 : 250.77;
+  });
+  document.getElementById('saveSettingsBtn').addEventListener('click', function(){
+    var s = DATA.settings;
+    s.salary = parseFloat(document.getElementById('cfgSalary').value)||0;
+    s.kids = parseInt(document.getElementById('cfgKids').value,10)||0;
+    s.efkaStatus = document.getElementById('cfgEfkaStatus').value;
+    s.efka = parseFloat(document.getElementById('cfgEfka').value)||0;
+    s.perKm = parseFloat(document.getElementById('cfgPerKm').value)||0;
+    s.kmPerOrder = parseFloat(document.getElementById('cfgKmPerOrder').value)||0;
+    s.telos = parseFloat(document.getElementById('cfgTelos').value)||0;
+    saveData();
+    showToast("Οι ρυθμίσεις αποθηκεύτηκαν");
+    renderAll();
+  });
+
+  /* ============ ORDER SHEET ============ */
+  var orderBackdrop = document.getElementById('orderBackdrop');
+  var orderSheet = document.getElementById('orderSheet');
+  function openOrderSheet(id){
+    var isEdit = !!id;
+    document.getElementById('orderSheetTitle').textContent = isEdit ? "Επεξεργασία παραγγελίας" : "Νέα παραγγελία";
+    document.getElementById('orderId').value = id||"";
+    document.getElementById('delOrderBtn').style.display = isEdit ? 'block':'none';
+    if(isEdit){
+      var o = DATA.orders.find(function(x){return x.id===id;});
+      document.getElementById('ordDate').value = o.date;
+      document.getElementById('ordTime').value = o.time;
+      document.getElementById('ordAmount').value = o.amount;
+      document.getElementById('ordTip').value = o.tip;
+      document.getElementById('ordKm').value = (o.km!==undefined&&o.km!==null)?o.km:"";
+      document.getElementById('ordNote').value = o.note||"";
+    } else {
+      document.getElementById('ordDate').value = todayISO();
+      document.getElementById('ordTime').value = nowHM();
+      document.getElementById('ordAmount').value = "";
+      document.getElementById('ordTip').value = "";
+      document.getElementById('ordKm').value = "";
+      document.getElementById('ordNote').value = "";
+    }
+    orderBackdrop.classList.add('on');
+    orderSheet.classList.add('on');
+  }
+  function closeOrderSheet(){
+    orderBackdrop.classList.remove('on');
+    orderSheet.classList.remove('on');
+  }
+  orderBackdrop.addEventListener('click', closeOrderSheet);
+  document.getElementById('fabAddBtn').addEventListener('click', function(){ openOrderSheet(null); });
+  document.getElementById('saveOrderBtn').addEventListener('click', function(){
+    var amount = parseFloat(document.getElementById('ordAmount').value);
+    if(!isFinite(amount) || amount<0){ showToast("Βάλε έγκυρη αμοιβή"); return; }
+    var id = document.getElementById('orderId').value;
+    var rec = {
+      id: id || uid(),
+      date: document.getElementById('ordDate').value || todayISO(),
+      time: document.getElementById('ordTime').value || nowHM(),
+      amount: amount,
+      tip: parseFloat(document.getElementById('ordTip').value)||0,
+      km: document.getElementById('ordKm').value==="" ? null : parseFloat(document.getElementById('ordKm').value),
+      note: document.getElementById('ordNote').value.trim()
+    };
+    if(id){
+      var idx = DATA.orders.findIndex(function(x){return x.id===id;});
+      if(idx>-1) DATA.orders[idx]=rec;
+    } else {
+      DATA.orders.push(rec);
+    }
+    saveData();
+    closeOrderSheet();
+    showToast(id?"Η παραγγελία ενημερώθηκε":"Η παραγγελία καταχωρήθηκε");
+    renderAll();
+  });
+  document.getElementById('delOrderBtn').addEventListener('click', function(){
+    var id = document.getElementById('orderId').value;
+    DATA.orders = DATA.orders.filter(function(x){return x.id!==id;});
+    saveData();
+    closeOrderSheet();
+    showToast("Η παραγγελία διαγράφηκε");
+    renderAll();
+  });
+
+  /* ============ EXPENSE SHEET ============ */
+  var expBackdrop = document.getElementById('expBackdrop');
+  var expSheet = document.getElementById('expSheet');
+  function openExpSheet(id){
+    var isEdit = !!id;
+    document.getElementById('expSheetTitle').textContent = isEdit ? "Επεξεργασία εξόδου" : "Νέο έξοδο";
+    document.getElementById('expId').value = id||"";
+    document.getElementById('delExpBtn').style.display = isEdit?'block':'none';
+    if(isEdit){
+      var e = DATA.expenses.find(function(x){return x.id===id;});
+      document.getElementById('expDate').value = e.date;
+      document.getElementById('expAmount').value = e.amount;
+      document.getElementById('expCat').value = e.cat;
+      document.getElementById('expNote').value = e.note||"";
+    } else {
+      document.getElementById('expDate').value = todayISO();
+      document.getElementById('expAmount').value = "";
+      document.getElementById('expCat').value = "fuel";
+      document.getElementById('expNote').value = "";
+    }
+    expBackdrop.classList.add('on');
+    expSheet.classList.add('on');
+  }
+  function closeExpSheet(){
+    expBackdrop.classList.remove('on');
+    expSheet.classList.remove('on');
+  }
+  expBackdrop.addEventListener('click', closeExpSheet);
+  document.getElementById('fabExpBtn').addEventListener('click', function(){ openExpSheet(null); });
+  document.getElementById('saveExpBtn').addEventListener('click', function(){
+    var amount = parseFloat(document.getElementById('expAmount').value);
+    if(!isFinite(amount) || amount<=0){ showToast("Βάλε έγκυρο ποσό"); return; }
+    var id = document.getElementById('expId').value;
+    var rec = {
+      id: id || uid(),
+      date: document.getElementById('expDate').value || todayISO(),
+      amount: amount,
+      cat: document.getElementById('expCat').value,
+      note: document.getElementById('expNote').value.trim()
+    };
+    if(id){
+      var idx = DATA.expenses.findIndex(function(x){return x.id===id;});
+      if(idx>-1) DATA.expenses[idx]=rec;
+    } else {
+      DATA.expenses.push(rec);
+    }
+    saveData();
+    closeExpSheet();
+    showToast(id?"Το έξοδο ενημερώθηκε":"Το έξοδο καταχωρήθηκε");
+    renderAll();
+  });
+  document.getElementById('delExpBtn').addEventListener('click', function(){
+    var id = document.getElementById('expId').value;
+    DATA.expenses = DATA.expenses.filter(function(x){return x.id!==id;});
+    saveData();
+    closeExpSheet();
+    showToast("Το έξοδο διαγράφηκε");
+    renderAll();
+  });
+
+  /* ============ TABS ============ */
+  var sections = {home:'sec-home', orders:'sec-orders', expenses:'sec-expenses', settings:'sec-settings'};
+  function switchTab(tab){
+    Object.keys(sections).forEach(function(k){
+      document.getElementById(sections[k]).classList.toggle('active', k===tab);
+    });
+    document.querySelectorAll('.tab-btn').forEach(function(b){
+      b.classList.toggle('on', b.getAttribute('data-tab')===tab);
+    });
+    document.getElementById('fabAdd').style.display = (tab==='home'||tab==='orders') ? 'block':'none';
+    document.getElementById('fabExp').style.display = (tab==='expenses') ? 'block':'none';
+    if(tab==='settings') loadSettingsForm();
+    renderAll();
+  }
+  document.querySelectorAll('.tab-btn').forEach(function(b){
+    b.addEventListener('click', function(){ switchTab(b.getAttribute('data-tab')); });
+  });
+  document.getElementById('seeAllOrders').addEventListener('click', function(e){
+    e.preventDefault(); switchTab('orders');
+    document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('on', b.getAttribute('data-tab')==='orders');});
+  });
+
+  /* ============ PERIOD TOGGLE ============ */
+  document.querySelectorAll('.period-toggle button').forEach(function(b){
+    b.addEventListener('click', function(){
+      currentPeriod = b.getAttribute('data-period');
+      document.querySelectorAll('.period-toggle button').forEach(function(x){x.classList.remove('on');});
+      b.classList.add('on');
+      renderAll();
+    });
+  });
+
+  /* ============ PHOTO SCAN ============ */
+  var scanBackdrop = document.getElementById('scanBackdrop');
+  var scanSheet = document.getElementById('scanSheet');
+  var scanBody = document.getElementById('scanBody');
+  var scanFileInput = document.getElementById('scanFileInput');
+  var pendingScanOrders = []; // {included, date, time, title, amount, tip, km}
+
+  document.getElementById('scanTrigger').addEventListener('click', function(){
+    scanFileInput.value = "";
+    scanFileInput.click();
+  });
+
+  scanFileInput.addEventListener('change', function(){
+    var file = scanFileInput.files && scanFileInput.files[0];
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var dataUrl = e.target.result; // data:image/xxx;base64,....
+      openScanSheet(dataUrl);
+      runScan(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  function openScanSheet(dataUrl){
+    document.getElementById('scanSheetTitle').textContent = "Σάρωση φωτογραφίας";
+    scanBody.innerHTML =
+      '<img class="scan-preview-img" src="'+dataUrl+'">'+
+      '<div class="scan-status"><div class="spinner"></div><div>Διαβάζω τις παραγγελίες από τη φωτογραφία…</div></div>';
+    scanBackdrop.classList.add('on');
+    scanSheet.classList.add('on');
+  }
+  function closeScanSheet(){
+    scanBackdrop.classList.remove('on');
+    scanSheet.classList.remove('on');
+  }
+  scanBackdrop.addEventListener('click', closeScanSheet);
+
+  function runScan(dataUrl){
+    var match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/);
+    if(!match){
+      showScanError("Δεν μπόρεσα να διαβάσω το αρχείο εικόνας.");
+      return;
+    }
+    var mediaType = match[1];
+    var base64 = match[2];
+
+    var systemPrompt = "Είσαι βοηθός που διαβάζει screenshots από την εφαρμογή Wolt Driver (οθόνη κερδών/διανομών) και εξάγει δομημένα δεδομένα παραγγελιών. "+
+      "Η οθόνη δείχνει μια ημερομηνία στην κορυφή (π.χ. '21 ΣΕΠ 2026') και μετά μια λίστα διανομών. Κάθε διανομή έχει: όνομα καταστήματος/πελάτη, ώρα (π.χ. '8:24 μ.μ.'), μια γραμμή 'Προσφορά έργου (X.XX χλμ απόσταση)' με ποσό σε ευρώ, και προαιρετικά γραμμές 'Φιλοδώρημα' ή 'Επιπλέον χρόνος αναμονής' με επιπλέον ποσά. "+
+      "Για κάθε διανομή, βασική αμοιβή = το ποσό στη γραμμή 'Προσφορά έργου' ΣΥΝ οποιοδήποτε 'Επιπλέον χρόνος αναμονής' (αν υπάρχει) — αυτά είναι μέρος της αμοιβής, όχι φιλοδώρημα. Φιλοδώρημα = μόνο η γραμμή 'Φιλοδώρημα' αν υπάρχει, αλλιώς 0. Απόσταση = ο αριθμός σε χλμ μέσα στην παρένθεση της γραμμής 'Προσφορά έργου'. "+
+      "Μετάτρεψε την ελληνική ημερομηνία σε ISO format YYYY-MM-DD (έτος όπως αναγράφεται, μήνες: ΙΑΝ=01 ΦΕΒ=02 ΜΑΡ=03 ΑΠΡ=04 ΜΑΪ=05 ΙΟΥΝ=06 ΙΟΥΛ=07 ΑΥΓ=08 ΣΕΠ=09 ΟΚΤ=10 ΝΟΕ=11 ΔΕΚ=12). Μετάτρεψε την ώρα σε 24ωρο format HH:MM (μ.μ.=PM προσθέτεις 12 αν <12, π.μ.=AM όπως είναι, 12 π.μ.=00:00, 12 μ.μ.=12:00). "+
+      "Απάντησε ΜΟΝΟ με ένα JSON array, τίποτα άλλο, χωρίς markdown code fences, χωρίς εξηγήσεις. Κάθε στοιχείο: {\"date\":\"YYYY-MM-DD\",\"time\":\"HH:MM\",\"title\":\"όνομα καταστήματος\",\"amount\":αριθμός,\"tip\":αριθμός,\"km\":αριθμός}. Αν η εικόνα δεν περιέχει καμία αναγνωρίσιμη παραγγελία Wolt, απάντησε με [].";
+
+    fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 2000,
+        system: systemPrompt,
+        messages: [{
+          role: "user",
+          content: [
+            { type:"image", source:{ type:"base64", media_type: mediaType, data: base64 } },
+            { type:"text", text:"Διάβασε όλες τις παραγγελίες που φαίνονται σε αυτή τη φωτογραφία και επίστρεψε το JSON array όπως ζητήθηκε." }
+          ]
+        }]
+      })
+    }).then(function(r){
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      return r.json();
+    }).then(function(data){
+      var text = (data.content||[]).map(function(b){return b.text||"";}).join("\n").trim();
+      text = text.replace(/^```json\s*/i,"").replace(/^```\s*/,"").replace(/```\s*$/,"").trim();
+      var parsed;
+      try{ parsed = JSON.parse(text); }
+      catch(e){ throw new Error("parse"); }
+      if(!Array.isArray(parsed) || parsed.length===0){
+        showScanEmpty();
+        return;
+      }
+      showScanReview(parsed);
+    }).catch(function(err){
+      showScanError("Δεν μπόρεσα να διαβάσω τις παραγγελίες από τη φωτογραφία. Δοκίμασε ξανά με πιο καθαρή/φωτεινή φωτογραφία, ή καταχώρησε χειροκίνητα.");
+    });
+  }
+
+  function showScanError(msg){
+    var statusEls = scanBody.querySelector('.scan-status');
+    if(statusEls) statusEls.outerHTML = '<div class="scan-err">'+msg+'</div>';
+  }
+  function showScanEmpty(){
+    var statusEls = scanBody.querySelector('.scan-status');
+    if(statusEls) statusEls.outerHTML = '<div class="scan-err">Δεν εντόπισα παραγγελίες σε αυτή τη φωτογραφία. Δοκίμασε με φωτογραφία της λίστας διανομών του Wolt Driver app.</div>';
+  }
+
+  function showScanReview(items){
+    pendingScanOrders = items.map(function(it){
+      return {
+        included: true,
+        date: it.date || todayISO(),
+        time: it.time || "12:00",
+        title: (it.title||"Παραγγελία Wolt").toString().slice(0,80),
+        amount: parseFloat(it.amount)||0,
+        tip: parseFloat(it.tip)||0,
+        km: (it.km!==undefined && it.km!==null && it.km!=="") ? parseFloat(it.km) : null
+      };
+    });
+    renderScanReview();
+  }
+
+  function renderScanReview(){
+    var includedCount = pendingScanOrders.filter(function(o){return o.included;}).length;
+    var includedSum = pendingScanOrders.filter(function(o){return o.included;})
+      .reduce(function(s,o){return s+o.amount+o.tip;},0);
+
+    var html = '<div class="review-count">Βρέθηκαν '+pendingScanOrders.length+' παραγγελίες · επιλεγμένες '+includedCount+' · σύνολο '+euro(includedSum)+'</div>';
+    html += '<div class="review-list">';
+    pendingScanOrders.forEach(function(o, idx){
+      var d = new Date(o.date+"T00:00:00");
+      var dateStr = isNaN(d.getTime()) ? o.date : d.toLocaleDateString('el-GR',{day:'2-digit',month:'short'});
+      html += '<div class="review-item'+(o.included?'':' off')+'" data-idx="'+idx+'">'+
+        '<div class="review-check">✓</div>'+
+        '<div class="review-mid"><div class="rt">'+o.title+'</div>'+
+        '<div class="rs">'+dateStr+' · '+o.time+(o.km!=null?' · '+o.km+' km':'')+(o.tip>0?' · φιλ. '+euro(o.tip):'')+'</div></div>'+
+        '<div class="review-amt">'+euro(o.amount+o.tip)+'</div>'+
+        '</div>';
+    });
+    html += '</div>';
+    html += '<button class="save-btn" id="confirmScanBtn">Καταχώρηση '+includedCount+' παραγγελιών</button>';
+    html += '<button class="del-btn" id="cancelScanBtn">Ακύρωση</button>';
+
+    scanBody.innerHTML = html;
+
+    scanBody.querySelectorAll('.review-item').forEach(function(el){
+      el.addEventListener('click', function(){
+        var idx = parseInt(el.getAttribute('data-idx'),10);
+        pendingScanOrders[idx].included = !pendingScanOrders[idx].included;
+        renderScanReview();
+      });
+    });
+    document.getElementById('confirmScanBtn').addEventListener('click', confirmScanImport);
+    document.getElementById('cancelScanBtn').addEventListener('click', function(){
+      pendingScanOrders = [];
+      closeScanSheet();
+    });
+  }
+
+  function confirmScanImport(){
+    var toAdd = pendingScanOrders.filter(function(o){return o.included;});
+    toAdd.forEach(function(o){
+      DATA.orders.push({
+        id: uid(),
+        date: o.date,
+        time: o.time,
+        amount: o.amount,
+        tip: o.tip,
+        km: o.km,
+        note: o.title
+      });
+    });
+    saveData();
+    pendingScanOrders = [];
+    closeScanSheet();
+    showToast(toAdd.length+" παραγγελίες καταχωρήθηκαν");
+    renderAll();
+  }
+
+  /* ============ INIT ============ */
+  function renderAll(){
+    renderHome();
+    renderOrders();
+    renderExpenses();
+  }
+  function setTodayLabel(){
+    var d = new Date();
+    document.getElementById('todayLabel').textContent = d.toLocaleDateString('el-GR',{weekday:'short',day:'2-digit',month:'short'});
+  }
+  setTodayLabel();
+  renderAll();
+
+  /* ============ SERVICE WORKER (offline + installable) ============ */
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('sw.js').catch(function(){});
+    });
+  }
+
+})();
+</script>
+</body>
+</html>

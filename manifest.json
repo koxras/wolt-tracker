@@ -1,0 +1,36 @@
+{
+  "name": "Διανομέας Wolt · Έσοδα",
+  "short_name": "Διανομέας",
+  "description": "Καταγραφή παραγγελιών Wolt και υπολογισμός καθαρού εισοδήματος μετά από φόρους, ΕΦΚΑ και έξοδα οχήματος.",
+  "id": "/",
+  "start_url": "/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "fullscreen"],
+  "orientation": "portrait",
+  "background_color": "#0F1B12",
+  "theme_color": "#0F1B12",
+  "lang": "el",
+  "dir": "ltr",
+  "categories": ["finance", "productivity", "business"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
